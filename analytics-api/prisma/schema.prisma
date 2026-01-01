@@ -1,0 +1,885 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Analytics Events
+model Event {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  sessionId String   @map("session_id")
+  eventType String   @map("event_type")
+  eventData Json?    @map("event_data")
+  page      String?
+  referrer  String?
+  userAgent String?  @map("user_agent")
+  ip        String?
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([eventType])
+  @@index([timestamp])
+  @@map("events")
+}
+
+// Daily Aggregated Stats
+model DailyStat {
+  id   String   @id @default(uuid())
+  date DateTime @unique @db.Date
+
+  // Core metrics
+  totalEvents    Int @default(0) @map("total_events")
+  uniqueUsers    Int @default(0) @map("unique_users")
+  uniqueSessions Int @default(0) @map("unique_sessions")
+  pageViews      Int @default(0) @map("page_views")
+
+  // CODEX specific
+  quizStarted      Int @default(0) @map("quiz_started")
+  quizCompleted    Int @default(0) @map("quiz_completed")
+  modulesViewed    Int @default(0) @map("modules_viewed")
+  lessonsCompleted Int @default(0) @map("lessons_completed")
+
+  // Engagement
+  avgSessionDuration Float @default(0) @map("avg_session_duration")
+
+  // Detailed breakdown
+  eventsByType Json? @map("events_by_type")
+  topPages     Json? @map("top_pages")
+  topModules   Json? @map("top_modules")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("daily_stats")
+}
+
+// User Progress Tracking
+model UserProgress {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+
+  // XP & Level
+  totalXp      Int @default(0) @map("total_xp")
+  currentLevel Int @default(1) @map("current_level")
+
+  // Modules
+  modulesStarted   String[] @map("modules_started")
+  modulesCompleted String[] @map("modules_completed")
+
+  // Quiz Performance
+  quizzesCompleted Int   @default(0) @map("quizzes_completed")
+  totalCorrect     Int   @default(0) @map("total_correct")
+  totalQuestions   Int   @default(0) @map("total_questions")
+  avgScore         Float @default(0) @map("avg_score")
+
+  // Streak
+  currentStreak Int       @default(0) @map("current_streak")
+  longestStreak Int       @default(0) @map("longest_streak")
+  lastActiveAt  DateTime? @map("last_active_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId])
+  @@map("user_progress")
+}
+
+// Alert Rules - Define when alerts should trigger
+model AlertRule {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+
+  // Rule condition
+  metric    String // 'avg_score', 'days_inactive', 'quiz_failure_rate', etc.
+  operator  String // 'lt', 'gt', 'eq', 'lte', 'gte'
+  threshold Float
+  duration  Int? // Duration in minutes to check
+
+  // Targeting
+  targetType String  @default("user") @map("target_type") // 'user', 'organization', 'global'
+  targetId   String? @map("target_id")
+
+  // Notification settings
+  severity       String   @default("warning") // 'info', 'warning', 'critical'
+  notifyChannels String[] @map("notify_channels") // ['email', 'in_app', 'slack']
+  notifyRoles    String[] @map("notify_roles") // ['user', 'manager', 'admin']
+
+  // Throttling
+  cooldownMinutes Int       @default(60) @map("cooldown_minutes")
+  lastTriggeredAt DateTime? @map("last_triggered_at")
+
+  enabled Boolean @default(true)
+
+  alerts Alert[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("alert_rules")
+}
+
+// Alerts - Triggered alert instances
+model Alert {
+  id     String    @id @default(uuid())
+  ruleId String    @map("rule_id")
+  rule   AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  // Alert details
+  severity    String // 'info', 'warning', 'critical'
+  title       String
+  description String?
+
+  // Context
+  affectedUserId     String? @map("affected_user_id")
+  affectedEntityType String? @map("affected_entity_type")
+  affectedEntityId   String? @map("affected_entity_id")
+
+  // Trigger info
+  triggerMetric    String @map("trigger_metric")
+  triggerValue     Float  @map("trigger_value")
+  triggerThreshold Float  @map("trigger_threshold")
+
+  // Recommended actions
+  recommendedActions String[] @map("recommended_actions")
+
+  // Status
+  status String @default("open") // 'open', 'acknowledged', 'resolved', 'dismissed'
+
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  acknowledgedBy String?   @map("acknowledged_by")
+  resolvedAt     DateTime? @map("resolved_at")
+  resolvedBy     String?   @map("resolved_by")
+
+  notifications Notification[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([severity])
+  @@index([affectedUserId])
+  @@map("alerts")
+}
+
+// Notifications - In-app notification queue
+model Notification {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+
+  // Content
+  type    String // 'alert', 'achievement', 'reminder', 'system'
+  title   String
+  message String
+  link    String?
+  icon    String?
+
+  // Reference
+  alertId String? @map("alert_id")
+  alert   Alert?  @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  // Status
+  read   Boolean   @default(false)
+  readAt DateTime? @map("read_at")
+
+  // Email tracking
+  emailSent   Boolean   @default(false) @map("email_sent")
+  emailSentAt DateTime? @map("email_sent_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([read])
+  @@map("notifications")
+}
+
+// Report Templates - Define report types
+model ReportTemplate {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+
+  // Report type
+  type   String // 'compliance', 'progress', 'performance', 'custom'
+  format String @default("pdf") // 'pdf', 'excel', 'csv'
+
+  // Template configuration
+  config Json? // Chart configs, sections to include, filters
+
+  // Scheduling
+  scheduleEnabled Boolean @default(false) @map("schedule_enabled")
+  scheduleCron    String? @map("schedule_cron") // '0 9 1 * *' = 1st of month at 9am
+
+  // Recipients
+  recipients String[] // User IDs or email addresses
+
+  // Visibility
+  isSystem  Boolean @default(false) @map("is_system") // Built-in templates
+  createdBy String? @map("created_by")
+
+  reports GeneratedReport[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("report_templates")
+}
+
+// Generated Reports - Report instances
+model GeneratedReport {
+  id         String          @id @default(uuid())
+  templateId String?         @map("template_id")
+  template   ReportTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  // Report metadata
+  name   String
+  type   String // 'compliance', 'progress', 'performance', 'custom'
+  format String // 'pdf', 'excel', 'csv'
+
+  // Date range
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+
+  // Generation info
+  requestedBy String?  @map("requested_by")
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  // File storage
+  filePath String? @map("file_path")
+  fileSize Int?    @map("file_size") // in bytes
+  mimeType String? @map("mime_type")
+
+  // Status
+  status       String  @default("pending") // 'pending', 'generating', 'completed', 'failed'
+  errorMessage String? @map("error_message")
+
+  // Delivery
+  emailed       Boolean   @default(false)
+  emailedAt     DateTime? @map("emailed_at")
+  downloadCount Int       @default(0) @map("download_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([requestedBy])
+  @@index([status])
+  @@index([type])
+  @@map("generated_reports")
+}
+
+// ============================================
+// CORE APPLICATION MODELS
+// ============================================
+
+// Organization - Multi-tenant support
+model Organization {
+  id            String  @id @default(uuid())
+  name          String
+  slug          String  @unique
+  industry      String?
+  employeeCount Int?    @map("employee_count")
+
+  // Branding
+  logo           String?
+  primaryColor   String? @map("primary_color")
+  secondaryColor String? @map("secondary_color")
+
+  // Settings
+  timezone String @default("Europe/Paris")
+  language String @default("fr")
+
+  // Subscription
+  plan      String @default("starter") // 'starter', 'professional', 'enterprise'
+  planSeats Int    @default(5) @map("plan_seats")
+
+  departments         Department[]
+  users               User[]
+  modules             Module[]
+  assessmentTemplates AssessmentTemplate[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("organizations")
+}
+
+// Department within an organization
+model Department {
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  // Manager assignment
+  managerId String? @map("manager_id")
+  manager   User?   @relation("DepartmentManager", fields: [managerId], references: [id])
+
+  members User[] @relation("DepartmentMembers")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([organizationId, name])
+  @@map("departments")
+}
+
+// Extended User model
+model User {
+  id     String  @id @default(uuid())
+  email  String  @unique
+  name   String
+  avatar String?
+
+  // Organization
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  // Department
+  departmentId String?     @map("department_id")
+  department   Department? @relation("DepartmentMembers", fields: [departmentId], references: [id])
+
+  // Role & Status
+  role   String @default("user") // 'user', 'manager', 'admin', 'super_admin'
+  status String @default("invited") // 'active', 'inactive', 'invited'
+
+  // Position
+  position String?
+
+  // === NEW: Company Info (B2B SaaS) ===
+  companyName    String? @map("company_name")
+  companySize    String? @map("company_size") // '10-50', '50-150', '150-500', '500+'
+  industrySector String? @map("industry_sector") // 'manufacturing', 'logistics', 'pharma', 'services', 'food', 'cyber'
+  targetStandard String? @map("target_standard") // 'ISO_9001', 'GDP', 'ISO_27001', 'HACCP', 'ISO_42001', 'SURETE'
+
+  // === NEW: Subscription (Stripe) ===
+  subscriptionStatus    String    @default("trial") @map("subscription_status") // 'trial', 'active', 'past_due', 'cancelled', 'completed'
+  subscriptionStartDate DateTime? @map("subscription_start_date")
+  subscriptionEndDate   DateTime? @map("subscription_end_date")
+  stripeCustomerId      String?   @map("stripe_customer_id")
+  stripeSubscriptionId  String?   @map("stripe_subscription_id")
+
+  // === NEW: Onboarding ===
+  onboardingCompletedSteps String[] @default([]) @map("onboarding_completed_steps")
+
+  // Auth
+  lastLoginAt DateTime? @map("last_login_at")
+  invitedAt   DateTime? @map("invited_at")
+  invitedBy   String?   @map("invited_by")
+
+  // Manager notes (for team management)
+  managerNotes ManagerNote[] @relation("NoteAbout")
+  notesWritten ManagerNote[] @relation("NoteBy")
+
+  // Departments managed
+  managedDepartments Department[] @relation("DepartmentManager")
+
+  // Assignments
+  assignmentsReceived ModuleAssignment[] @relation("AssignedTo")
+  assignmentsMade     ModuleAssignment[] @relation("AssignedBy")
+
+  // Progress
+  moduleProgress     ModuleProgress[]
+  assessmentSessions AssessmentSession[]
+  certifications     UserCertification[]
+
+  // === NEW: Roadmap & Actions ===
+  roadmaps    Roadmap[]
+  userActions UserAction[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([departmentId])
+  @@index([role])
+  @@index([status])
+  @@index([subscriptionStatus])
+  @@map("users")
+}
+
+// Manager private notes about team members
+model ManagerNote {
+  id String @id @default(uuid())
+
+  aboutUserId String @map("about_user_id")
+  aboutUser   User   @relation("NoteAbout", fields: [aboutUserId], references: [id], onDelete: Cascade)
+
+  byUserId String @map("by_user_id")
+  byUser   User   @relation("NoteBy", fields: [byUserId], references: [id], onDelete: Cascade)
+
+  content String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([aboutUserId, byUserId])
+  @@map("manager_notes")
+}
+
+// Learning Module
+model Module {
+  id             String        @id @default(uuid())
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  // Basic info
+  title       String
+  description String?
+  coverImage  String? @map("cover_image")
+
+  // Categorization
+  category String // 'GDP', 'ISO', 'HACCP', etc.
+  tags     String[]
+
+  // Difficulty & Duration
+  difficulty        String @default("beginner") // 'beginner', 'intermediate', 'advanced', 'expert'
+  estimatedDuration Int    @default(30) @map("estimated_duration") // in minutes
+
+  // Content
+  sections Json? // Array of { title, order, blocks[] }
+
+  // Gamification
+  xpReward Int     @default(100) @map("xp_reward")
+  badge    String?
+
+  // Publication
+  status      String    @default("draft") // 'draft', 'published', 'archived'
+  publishedAt DateTime? @map("published_at")
+
+  // Stats
+  completionCount Int   @default(0) @map("completion_count")
+  avgScore        Float @default(0) @map("avg_score")
+
+  // Relations
+  prerequisites  ModulePrerequisite[] @relation("RequiresModule")
+  unlocksModules ModulePrerequisite[] @relation("UnlocksModule")
+  assignments    ModuleAssignment[]
+  progress       ModuleProgress[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([status])
+  @@map("modules")
+}
+
+// Module prerequisites
+model ModulePrerequisite {
+  id String @id @default(uuid())
+
+  moduleId String @map("module_id")
+  module   Module @relation("RequiresModule", fields: [moduleId], references: [id], onDelete: Cascade)
+
+  prerequisiteId String @map("prerequisite_id")
+  prerequisite   Module @relation("UnlocksModule", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@unique([moduleId, prerequisiteId])
+  @@map("module_prerequisites")
+}
+
+// Module assignments by managers
+model ModuleAssignment {
+  id String @id @default(uuid())
+
+  moduleId String @map("module_id")
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  assignedToId String @map("assigned_to_id")
+  assignedTo   User   @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: Cascade)
+
+  assignedById String @map("assigned_by_id")
+  assignedBy   User   @relation("AssignedBy", fields: [assignedById], references: [id])
+
+  // Assignment details
+  priority String    @default("normal") // 'low', 'normal', 'high', 'urgent'
+  deadline DateTime?
+  message  String?
+
+  // Status
+  status      String    @default("pending") // 'pending', 'in_progress', 'completed'
+  completedAt DateTime? @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([assignedToId])
+  @@index([moduleId])
+  @@map("module_assignments")
+}
+
+// User progress on modules
+model ModuleProgress {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  moduleId String @map("module_id")
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  // Progress
+  status          String @default("not_started") // 'not_started', 'in_progress', 'completed'
+  progressPercent Int    @default(0) @map("progress_percent")
+
+  // Sections completed
+  completedSections String[] @map("completed_sections")
+
+  // Time
+  timeSpentSeconds Int @default(0) @map("time_spent_seconds")
+
+  // Score (if quiz included)
+  quizScore    Float? @map("quiz_score")
+  quizAttempts Int    @default(0) @map("quiz_attempts")
+
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, moduleId])
+  @@map("module_progress")
+}
+
+// Assessment Template
+model AssessmentTemplate {
+  id             String        @id @default(uuid())
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  // Basic info
+  name        String
+  description String?
+
+  // Type
+  certification String // 'GDP', 'ISO_9001', 'ISO_27001', 'HACCP', etc.
+  version       String @default("1.0")
+
+  // Estimated time
+  estimatedDuration Int @default(15) @map("estimated_duration") // in minutes
+
+  // Content
+  sections Json // Array of { title, weight, questions[] }
+
+  // Scoring
+  scoringMethod  String @default("weighted") @map("scoring_method") // 'weighted', 'simple'
+  maturityLevels Json   @map("maturity_levels") // Array of { name, minScore, maxScore, description }
+
+  // Publication
+  status String  @default("draft") // 'draft', 'published', 'archived'
+  isDemo Boolean @default(false) @map("is_demo")
+
+  sessions AssessmentSession[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("assessment_templates")
+}
+
+// Assessment Session (user taking an assessment)
+model AssessmentSession {
+  id String @id @default(uuid())
+
+  templateId String             @map("template_id")
+  template   AssessmentTemplate @relation(fields: [templateId], references: [id])
+
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id])
+
+  // For demo sessions (anonymous)
+  email         String?
+  companyName   String? @map("company_name")
+  industry      String?
+  employeeCount String? @map("employee_count")
+
+  // Answers and scoring
+  answers       Json?
+  sectionScores Json?   @map("section_scores")
+  overallScore  Float?  @map("overall_score")
+  maturityLevel String? @map("maturity_level")
+
+  // Gap analysis
+  gapAnalysis     Json? @map("gap_analysis")
+  recommendations Json?
+
+  // Status
+  status String @default("in_progress") // 'in_progress', 'completed', 'abandoned'
+
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  // Conversion tracking (for demo)
+  convertedToSignup Boolean @default(false) @map("converted_to_signup")
+  pdfDownloaded     Boolean @default(false) @map("pdf_downloaded")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("assessment_sessions")
+}
+
+// User Certifications
+model UserCertification {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Certification info
+  name          String
+  certification String // 'GDP', 'ISO_9001', etc.
+  level         String? // 'Level 1', 'Level 2', etc.
+
+  // Dates
+  issuedAt  DateTime  @map("issued_at")
+  expiresAt DateTime? @map("expires_at")
+
+  // Status
+  status String @default("active") // 'active', 'expired', 'revoked'
+
+  // Proof
+  certificateUrl   String? @map("certificate_url")
+  verificationCode String? @unique @map("verification_code")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([certification])
+  @@map("user_certifications")
+}
+
+// ============================================
+// B2B SAAS MVP - NEW MODELS
+// ============================================
+
+// Roadmap - Personalized action plan per user
+model Roadmap {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  assessmentSessionId String? @map("assessment_session_id")
+
+  // Standard targeted
+  standardType String @map("standard_type") // 'ISO_9001', 'GDP', 'ISO_27001', 'HACCP', 'ISO_42001', 'SURETE'
+
+  // Sprint planning
+  totalSprints        Int @default(12) @map("total_sprints")
+  currentSprint       Int @default(1) @map("current_sprint")
+  sprintDurationWeeks Int @default(2) @map("sprint_duration_weeks")
+
+  // Progress
+  completionPercentage    Float     @default(0) @map("completion_percentage")
+  estimatedCompletionDate DateTime? @map("estimated_completion_date")
+
+  // Status
+  status String @default("active") // 'active', 'paused', 'completed', 'abandoned'
+
+  // Sprint details stored as JSON for flexibility
+  sprintDetails Json? @map("sprint_details") // Array of { sprintNumber, startDate, endDate, actionIds[] }
+
+  // Relations
+  userActions UserAction[]
+
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([standardType])
+  @@index([status])
+  @@map("roadmaps")
+}
+
+// Action - Reference table of all possible actions per standard
+model Action {
+  id String @id @default(uuid())
+
+  // Standard this action belongs to
+  standardType String @map("standard_type") // 'ISO_9001', 'GDP', 'ISO_27001', 'HACCP', 'ISO_42001', 'SURETE'
+
+  // Unique code for reference
+  actionCode String @unique @map("action_code") // Ex: "ISO9001_4.1_CONTEXT"
+
+  // Content
+  title       String
+  description String @db.Text
+
+  // Requirement reference (chapter/clause)
+  requirementRef String  @map("requirement_ref") // Ex: "4.1 - Contexte de l'organisation"
+  chapterNumber  String? @map("chapter_number") // Ex: "4.1"
+
+  // Effort estimation
+  estimatedHours Int @default(4) @map("estimated_hours")
+  priorityWeight Int @default(5) @map("priority_weight") // 1-10, higher = more important
+
+  // Categorization
+  category String? // 'documentation', 'process', 'training', 'audit', 'implementation'
+
+  // Sector-specific variations (JSON)
+  sectorVariations Json? @map("sector_variations") // { "pharma": "...", "manufacturing": "..." }
+
+  // Linked resources
+  templateIds String[] @map("template_ids") // IDs of related templates
+  videoUrl    String?  @map("video_url")
+
+  // Dependencies (other actions that should be done first)
+  dependsOnActions String[] @map("depends_on_actions") // action_codes of prerequisites
+
+  // Ordering
+  displayOrder Int @default(0) @map("display_order")
+
+  // Relations
+  userActions UserAction[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([standardType])
+  @@index([chapterNumber])
+  @@index([priorityWeight])
+  @@map("actions")
+}
+
+// UserAction - User's progress on a specific action
+model UserAction {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  roadmapId String  @map("roadmap_id")
+  roadmap   Roadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+
+  actionId String @map("action_id")
+  action   Action @relation(fields: [actionId], references: [id])
+
+  // Sprint assignment
+  sprintNumber Int @map("sprint_number")
+
+  // Status
+  status String @default("not_started") // 'not_started', 'in_progress', 'completed', 'blocked', 'skipped'
+
+  // Progress tracking
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  // User notes
+  notes         String? @db.Text
+  blockedReason String? @map("blocked_reason")
+
+  // Attached files (user uploads)
+  uploadedFiles Json? @map("uploaded_files") // Array of { fileName, fileUrl, uploadedAt }
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([roadmapId, actionId])
+  @@index([userId])
+  @@index([roadmapId])
+  @@index([actionId])
+  @@index([status])
+  @@index([sprintNumber])
+  @@map("user_actions")
+}
+
+// Template - Document templates library per standard
+model Template {
+  id String @id @default(uuid())
+
+  // Standard this template belongs to
+  standardType String @map("standard_type") // 'ISO_9001', 'GDP', 'ISO_27001', 'HACCP', 'ISO_42001', 'SURETE'
+
+  // Unique code for reference
+  templateCode String @unique @map("template_code") // Ex: "ISO9001_QUALITY_POLICY"
+
+  // Content
+  title       String
+  description String? @db.Text
+
+  // Categorization
+  category String // 'manual', 'procedure', 'form', 'record', 'tool', 'checklist'
+
+  // File info
+  fileUrl    String @map("file_url") // Supabase Storage URL
+  fileFormat String @map("file_format") // 'docx', 'xlsx', 'pdf', 'pptx'
+  fileSize   Int?   @map("file_size") // in bytes
+
+  // Requirement reference
+  requirementRef String? @map("requirement_ref") // Ex: "5.2 - Politique qualité"
+
+  // Sector-specific adaptations (JSON)
+  sectorAdaptations Json? @map("sector_adaptations") // { "pharma": "...", "manufacturing": "..." }
+
+  // Linked actions
+  relatedActionCodes String[] @map("related_action_codes")
+
+  // Stats
+  downloadCount Int @default(0) @map("download_count")
+
+  // Ordering
+  displayOrder Int @default(0) @map("display_order")
+
+  // Status
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([standardType])
+  @@index([category])
+  @@index([isActive])
+  @@map("templates")
+}
+
+// StandardConfig - Configuration per standard (questions, metadata)
+model StandardConfig {
+  id String @id @default(uuid())
+
+  // Standard identifier
+  standardType String @unique @map("standard_type") // 'ISO_9001', 'GDP', 'ISO_27001', 'HACCP', 'ISO_42001', 'SURETE'
+
+  // Display info
+  name        String // "ISO 9001:2015"
+  shortName   String  @map("short_name") // "ISO 9001"
+  description String? @db.Text
+  icon        String? // emoji or icon name
+
+  // Assessment questions (JSON array)
+  questions Json // Array of question objects
+
+  // Chapters/Sections structure
+  chapters Json // Array of { number, title, weight }
+
+  // Maturity levels definition
+  maturityLevels Json @map("maturity_levels") // Array of { level, name, minScore, maxScore, description }
+
+  // Estimated certification time (in months)
+  estimatedMonths Int @default(6) @map("estimated_months")
+
+  // Typical price for this certification (informational)
+  typicalPrice Int? @map("typical_price") // in euros
+
+  // Sector relevance scores
+  sectorRelevance Json? @map("sector_relevance") // { "pharma": 10, "manufacturing": 8, ... }
+
+  // Status
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("standard_configs")
+}

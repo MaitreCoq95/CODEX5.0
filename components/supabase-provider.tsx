@@ -1,44 +1,31 @@
-
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Session, SupabaseClient } from "@supabase/supabase-js";
+import { createContext, useContext, useMemo } from "react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 type SupabaseContext = {
-  supabase: SupabaseClient;
-  session: Session | null;
+  supabase: SupabaseClient | null;
 };
 
-const Context = createContext<SupabaseContext | undefined>(undefined);
+const Context = createContext<SupabaseContext>({ supabase: null });
 
 export default function SupabaseProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [supabase] = useState(() => createClientComponentClient());
-  const [session, setSession] = useState<Session | null>(null);
-
-  useEffect(() => {
-    // Fetch initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_, session) => {
-      setSession(session);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
+  const supabase = useMemo(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (url && key && url !== 'https://your-project.supabase.co') {
+      return createClient(url, key);
+    }
+    return null;
+  }, []);
 
   return (
-    <Context.Provider value={{ supabase, session }}>
+    <Context.Provider value={{ supabase }}>
       {children}
     </Context.Provider>
   );
@@ -46,8 +33,5 @@ export default function SupabaseProvider({
 
 export const useSupabase = () => {
   const context = useContext(Context);
-  if (context === undefined) {
-    throw new Error("useSupabase must be used inside SupabaseProvider");
-  }
   return context;
 };

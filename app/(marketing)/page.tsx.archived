@@ -1,0 +1,52 @@
+"use client"
+
+import { HeroSection } from "@/components/landing/hero-section"
+import { MethodSection } from "@/components/landing/method-section"
+import { TimelineSection } from "@/components/landing/timeline-section"
+import { VerticalTabs } from "@/components/landing/vertical-tabs"
+import { ProblemSolution } from "@/components/landing/problem-solution"
+import { FeatureGrid } from "@/components/landing/feature-grid"
+import { PricingSection } from "@/components/landing/pricing-section"
+import { SocialProofSection } from "@/components/landing/social-proof-section"
+import { ReassuranceSection } from "@/components/landing/reassurance-section"
+import { FAQSection } from "@/components/landing/faq-section"
+import { CTASection } from "@/components/landing/cta-section"
+
+export default function HomePage() {
+  return (
+    <div className="flex flex-col min-h-screen bg-background">
+      {/* 1. HERO - Value Prop & Trust */}
+      <HeroSection />
+
+      {/* 2. NOTRE MÉTHODE - Les 3 Piliers Hybrides (P1 CRITIQUE) */}
+      <MethodSection />
+
+      {/* 3. COMMENT ÇA MARCHE - Timeline vers certification (P1 CRITIQUE) */}
+      <TimelineSection />
+
+      {/* 4. VERTICALS - 7 Normes supportées */}
+      <VerticalTabs />
+
+      {/* 5. PROBLEM/SOLUTION - Why Us */}
+      <ProblemSolution />
+
+      {/* 6. FEATURES - How it works */}
+      <FeatureGrid />
+
+      {/* 7. PRICING - Plans & Formules */}
+      <PricingSection />
+
+      {/* 8. SOCIAL PROOF - Cas Clients (P1 CRITIQUE) */}
+      <SocialProofSection />
+
+      {/* 9. RÉASSURANCE - Chiffres clés & Certifications (P1 CRITIQUE) */}
+      <ReassuranceSection />
+
+      {/* 10. FAQ - Objections courantes (P1 CRITIQUE) */}
+      <FAQSection />
+
+      {/* 11. FINAL CTA - Conversion */}
+      <CTASection />
+    </div>
+  )
+}

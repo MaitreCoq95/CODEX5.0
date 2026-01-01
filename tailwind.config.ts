@@ -53,6 +53,9 @@ const config = {
         },
         "vyxo-navy": "hsl(var(--vyxo-navy))",
         "vyxo-gold": "hsl(var(--vyxo-gold))",
+        // Partner landing page colors
+        "partner-accent": "#10B981", // Emerald 500 - Growth/Success
+        "partner-highlight": "#F59E0B", // Amber 500 - Premium/Highlight
       },
       borderRadius: {
         lg: "var(--radius)",

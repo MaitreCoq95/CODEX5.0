@@ -6,20 +6,15 @@ import { cn } from "@/lib/utils"
 import Image from "next/image"
 import {
   LayoutDashboard,
-  Users,
-  ClipboardCheck,
-  FileText,
-  FolderOpen,
-  Bot,
+  BookOpen,
   Settings,
   LogOut,
   Menu,
-  Target,
-  BookOpen,
-  Lightbulb,
-  FolderKanban,
-  Building2,
-  LineChart
+  GraduationCap,
+  Award,
+  Brain,
+  BarChart3,
+  ClipboardCheck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -34,85 +29,49 @@ export function Sidebar({ className }: SidebarProps) {
 
   const routes = [
     {
-      label: t("nav.dashboard"),
+      label: "Dashboard",
       icon: LayoutDashboard,
-      href: "/",
-      color: "text-sky-500",
+      href: "/dashboard",
+      color: "text-vyxo-gold",
     },
     {
-      label: t("nav.clients"),
-      icon: Users,
-      href: "/clients",
-      color: "text-violet-500",
-    },
-    {
-      label: t("nav.prospecting"),
-      icon: Target,
-      href: "/prospecting",
-      color: "text-amber-500",
-    },
-    {
-      label: "VyxHunter",
-      icon: Bot,
-      href: "/vyxhunter",
-      color: "text-purple-500",
-    },
-    {
-      label: t("nav.emailgen"),
-      icon: Bot,
-      href: "/prospecting/email-generator",
-      color: "text-indigo-500",
-    },
-    {
-      label: t("nav.audits"),
-      icon: ClipboardCheck,
-      href: "/audits",
-      color: "text-pink-700",
-    },
-    {
-      label: "Vyxo Codir",
-      icon: Building2,
-      href: "/vyxo-codir",
-      color: "text-blue-500",
-    },
-    {
-      label: "CODIR Dashboard",
-      icon: Building2,
-      href: "/codir-dashboard",
-      color: "text-indigo-600",
-    },
-    {
-      label: "Vyxo Bucket",
-      icon: Lightbulb,
-      href: "/vyxo-bucket",
-      color: "text-yellow-500",
-    },
-    {
-      label: "Vyxo Projets",
-      icon: FolderKanban,
-      href: "/vyxo-projets",
-      color: "text-green-500",
-    },
-    {
-      label: "Finance Hub",
-      icon: LineChart,
-      href: "/finance",
-      color: "text-rose-500",
-    },
-    {
-      label: t("nav.documents"),
-      icon: FolderOpen,
-      href: "/documents",
-      color: "text-emerald-500",
-    },
-    {
-      label: t("nav.codex"),
+      label: "CODEX",
       icon: BookOpen,
       href: "/codex",
       color: "text-cyan-500",
     },
     {
-      label: t("nav.settings"),
+      label: "Modules",
+      icon: Brain,
+      href: "/codex/modules",
+      color: "text-purple-500",
+    },
+    {
+      label: "Learning Paths",
+      icon: GraduationCap,
+      href: "/codex/learning",
+      color: "text-emerald-500",
+    },
+    {
+      label: "Quiz",
+      icon: Award,
+      href: "/codex/quiz",
+      color: "text-amber-500",
+    },
+    {
+      label: "Assessments",
+      icon: ClipboardCheck,
+      href: "/assessments",
+      color: "text-orange-500",
+    },
+    {
+      label: "📊 Pilotage",
+      icon: BarChart3,
+      href: "/analytics",
+      color: "text-indigo-500",
+    },
+    {
+      label: "Paramètres",
       icon: Settings,
       href: "/settings",
       color: "text-zinc-400",
@@ -123,7 +82,7 @@ export function Sidebar({ className }: SidebarProps) {
     <div className={cn("pb-12 min-h-screen bg-vyxo-navy", className)}>
       <div className="space-y-4 py-4">
         <div className="px-3 py-2">
-          <Link href="/" className="flex items-center pl-3 mb-14">
+          <Link href="/dashboard" className="flex items-center pl-3 mb-14">
             <div className="relative w-10 h-10 mr-3">
               <Image 
                 src="/vyxo-logo.png" 
@@ -134,7 +93,7 @@ export function Sidebar({ className }: SidebarProps) {
               />
             </div>
             <h1 className="text-xl font-bold text-white tracking-wide">
-              Vyxo <span className="text-vyxo-gold">Central Hub</span>
+              Vyxo <span className="text-vyxo-gold">CODEX</span>
             </h1>
           </Link>
           <div className="space-y-1">
@@ -161,7 +120,7 @@ export function Sidebar({ className }: SidebarProps) {
             <div className="space-y-1">
                 <Button variant="ghost" className="w-full justify-start text-zinc-400 hover:text-red-500 hover:bg-red-500/10">
                     <LogOut className="h-5 w-5 mr-3" />
-                    {t("nav.logout")}
+                    Déconnexion
                 </Button>
             </div>
         </div>
